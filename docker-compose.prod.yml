@@ -10,6 +10,8 @@ services:
             VIRTUAL_HOST: ${HOST_DOMAIN}
             LETSENCRYPT_HOST: ${HOST_DOMAIN}
             LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+            OPENAI_API_KEY: ${OPENAI_API_KEY}
+            OPENAI_MODEL: ${OPENAI_MODEL}
         volumes:
             - app-mydb:/app/App_Data
     app-migration:
