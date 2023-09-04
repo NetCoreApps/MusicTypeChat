@@ -3,6 +3,7 @@
 type Track = { name: string };
 type TrackList = Track[];
 type Playlist = TrackList; 
+type SearchType = "track" | "album" | "artist";
 
 export type API = {
     // play track list
@@ -42,7 +43,7 @@ export type API = {
     // change volume
     changeVolume(volumeChangeAmount: number): void;
     // query is a Spotify search expression such as 'Rock Lobster' or 'te kanawa queen of night'
-    searchTracks(query: string): TrackList;
+    searchTracks(query: string, filterType: SearchType): TrackList;
     // return the last track list shown to the user
     // for example, if the user types "play the third one" the player plays the third track
     // from the last track list shown

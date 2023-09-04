@@ -1,5 +1,6 @@
 using ServiceStack;
 using MusicTypeChat.ServiceModel;
+using ServiceStack.Gpt;
 using ServiceStack.OrmLite;
 using ServiceStack.Text;
 using SpotifyAPI.Web;
@@ -33,16 +34,29 @@ public class MyServices : Service
         };
     }
     
-    public ITypeChatProvider<SpotifyCommand> TypeChatProvider { get; set; }
+    public ITypeChatProvider TypeChatProvider { get; set; }
+    public IPromptProvider PromptProvider { get; set; }
+    public AppConfig Config { get; set; }
+    
+    public TypeChatRequest CreateTypeChatRequest(string userMessage) => new(PromptProvider, userMessage) {
+        NodePath = Config.NodePath,
+        NodeProcessTimeoutMs = Config.NodeProcessTimeoutMs,
+        WorkingDirectory = Environment.CurrentDirectory,
+        SchemaPath = Config.SiteConfig.GptPath.CombineWith("schema.ts"),
+        TypeChatTranslator = TypeChatTranslator.Program
+    };
     
  
     public async Task<object> Post(ProcessSpotifyCommand request)
     {
-        var program = await TypeChatProvider.ProcessAsync(request);
         var session = GetSession().GetAuthTokens("spotify");
         if(session == null)
             throw new Exception("Spotify session not found");
-        var programResult = await BindAndRun<SpotifyProgram>(program, new Dictionary<string, string>
+        var program =
+            await TypeChatProvider.TranslateMessageAsync(CreateTypeChatRequest(request.UserMessage));
+
+        var programRequest = program.Result.FromJson<TypeChatProgramResponse>();
+        var programResult = await BindAndRun<SpotifyProgram>(programRequest, new Dictionary<string, string>
         {
             {"SpotifyToken",session.AccessToken}
         });
@@ -68,7 +82,7 @@ public class MyServices : Service
     private async Task<object> ProcessStep<T>(TypeChatStep step, T prog) where T : TypeChatProgramBase,new()
     {
         var func = step.Func;
-        var args = step.Args;
+        var args = step.Args ?? new List<object>();
         var method = typeof(T).GetMethod(func);
 
         if (method == null)
@@ -99,10 +113,10 @@ public class MyServices : Service
                 }
             }
 
-            if (param.ParameterType == typeof(String) || param.ParameterType.IsValueType)
+            if (param.ParameterType == typeof(String) || param.ParameterType is { IsValueType: true, IsEnum: false })
             {
                 // For value types, use Convert.ChangeType
-                paramValues[i] = Convert.ChangeType(arg, param.ParameterType);
+                paramValues[i] = Convert.ChangeType(arg, Nullable.GetUnderlyingType(param.ParameterType) ?? param.ParameterType);
             }
             else
             {
@@ -145,7 +159,6 @@ public class MyServices : Service
 public class SpotifyProgram : TypeChatProgramBase
 {
     private SpotifyClient _spotifyClient;
-    private TrackList _lastShownTrackList = new TrackList();
     
     public override void Init()
     {
@@ -161,34 +174,51 @@ public class SpotifyProgram : TypeChatProgramBase
         });
     }
 
-    public async Task<TrackList> searchTracks(string query)
+    public async Task<TrackList> searchTracks(string query, SearchRequest.Types filterType = SearchRequest.Types.Track)
     {
-        var result = await _spotifyClient.Search.Item(new SearchRequest(SearchRequest.Types.Track, query));
-        
-        var tracks =  result.Tracks.Items?.Select(x => new Track { Name = x.Name, Uri = x.Uri }).ToList();
+        var result = await _spotifyClient.Search.Item(new SearchRequest(filterType, query));
+
+        List<Track> tracks = new TrackList();
         var tracksList = new TrackList();
-        if (tracks != null)
+        switch (filterType)
         {
-            tracksList.AddRange(tracks);
+            case SearchRequest.Types.Album:
+                var tRes = await _spotifyClient.Albums.GetSeveral(new AlbumsRequest(result.Albums.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
+                tracks.AddRange(tRes.Albums.Select(x =>
+                    {
+                        return x.Tracks.Items?.Select(y => new Track { Name = y.Name, Uri = y.Uri, Album = x.Name });
+                    })
+                    .SelectMany(x => x ?? new List<Track>())
+                    .Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Name}));
+                break;
+            case SearchRequest.Types.Artist:
+                var aRes = await _spotifyClient.Artists.GetSeveral(new ArtistsRequest(result.Artists.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
+                var aTracks = await _spotifyClient.Artists.GetTopTracks(aRes.Artists.First().Id, new ArtistsTopTracksRequest("US"));
+                tracks.AddRange(aTracks.Tracks.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Album.Name}));
+                break;
+            case SearchRequest.Types.Track:
+                tracks = result.Tracks.Items?.Select(x => new Track { Name = x.Name, Uri = x.Uri }).ToList() ?? new TrackList();
+                break;
         }
+        
+        tracksList.AddRange(tracks);
 
         return tracksList;
     }
-    
-    public void printTracks(TrackList trackList)
-    {
-        // Logic to print the tracks to console or some other medium
-    }
 
-    public async Task getQueue()
+    public async Task<List<Track>> getQueue()
     {
         // Logic to fetch and display upcoming tracks in the queue
+        var queueResponse = await _spotifyClient.Player.GetQueue();
+        var tracks = queueResponse.Queue.Where(x => x.Type == ItemType.Track).Select(x => x as SpotifyAPI.Web.FullTrack).ToList();
+        return tracks.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Album.Name}).ToList();
     }
 
-    public async Task status()
+    public async Task<CurrentlyPlayingContext> status()
     {
         var playback = await _spotifyClient.Player.GetCurrentPlayback();
         // Logic to display the current playback status
+        return playback;
     }
 
     public async Task pause()
@@ -221,101 +251,11 @@ public class SpotifyProgram : TypeChatProgramBase
         await _spotifyClient.Player.ResumePlayback();
     }
 
-    public async Task listDevices()
-    {
-        var devices = await _spotifyClient.Player.GetAvailableDevices();
-        // Logic to list available devices
-    }
-
-    public async Task selectDevice(string keyword)
-    {
-        var devices = await _spotifyClient.Player.GetAvailableDevices();
-        // Logic to select a device based on the keyword
-    }
-
     public async Task setVolume(int newVolumeLevel)
     {
         await _spotifyClient.Player.SetVolume(new PlayerVolumeRequest(newVolumeLevel));
     }
-
-    public async Task changeVolume(int volumeChangeAmount)
-    {
-        var playback = await _spotifyClient.Player.GetCurrentPlayback();
-        int? newVolume = playback.Device.VolumePercent + volumeChangeAmount;
-        await _spotifyClient.Player.SetVolume(new PlayerVolumeRequest(newVolume ?? 33));
-    }
     
-    public TrackList getLastTrackList()
-    {
-        return _lastShownTrackList;
-    }
-
-    public async Task listPlaylists()
-    {
-        var playlists = await _spotifyClient.Playlists.CurrentUsers();
-        // Logic to list all playlists
-    }
-
-    public async Task<Playlist> getPlaylist(string name)
-    {
-        var playlists = await _spotifyClient.Playlists.CurrentUsers();
-        // Logic to get playlist by name
-        // Get Playlist by name
-        var playlist = playlists.Items?.FirstOrDefault(x => x.Name == name);
-        if (playlist == null)
-        {
-            throw new Exception("Playlist not found");
-        }
-        // Get tracks from playlist
-        return new Playlist()
-        {
-            Id = playlist.Id
-        };
-    }
-
-    public async Task<TrackList> getAlbum(string name)
-    {
-        var album = await _spotifyClient.Albums.Get(name);
-        // Logic to get album by name
-        // Get tracks from album
-        var tracks = album.Tracks.Items?.Select(x => new Track { Name = x.Name, Uri = x.Uri }).ToList();
-        var tracksList = new TrackList();
-        if (tracks != null) tracksList.AddRange(tracks);
-        return tracksList;
-    }
-
-    public async Task<TrackList> getFavorites(int? count = null)
-    {
-        var favoriteTracks = await _spotifyClient.Library.GetTracks();
-        // Logic to get favorite tracks
-        var tracks = favoriteTracks.Items?.Select(x => new Track { Name = x.Track.Name, Uri = x.Track.Uri }).ToList();
-        var tracksList = new TrackList();
-        if (tracks != null) tracksList.AddRange(tracks);
-
-        return tracksList;
-    }
-
-    public TrackList filterTracks(TrackList trackList, string filterType, string filter, bool? negate = false)
-    {
-        // Logic to filter tracks
-        throw new NotImplementedException();
-    }
-
-    public async Task createPlaylist(TrackList trackList, string name)
-    {
-        var createRequest = new PlaylistCreateRequest(name);
-        // get the authorized user id.
-        var user = await _spotifyClient.UserProfile.Current();
-        var playlist = await _spotifyClient.Playlists.Create(user.Id, createRequest);
-        // Logic to add tracks to the playlist
-    }
-
-    public async Task deletePlaylist(Playlist playlist)
-    {
-        // Logic to delete a playlist
-        // Not supported by the API
-    }
-
     public void unknownAction(string text)
     {
         // Logic for unknown actions
@@ -332,6 +272,7 @@ public class Track
 {
     public string Name { get; set; }
     public string Uri { get; set; }
+    public string Album { get; set; }
 }
 
 public class TrackList : List<Track> { }
@@ -339,6 +280,13 @@ public class TrackList : List<Track> { }
 public class Playlist : TrackList
 {
     public string Id { get; set; }
+}
+
+public enum SpotifyFilterType
+{
+    Album,
+    Artist,
+    Track
 }
 
 public class TypeChatProgramBase

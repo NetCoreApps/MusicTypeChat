@@ -35,10 +35,6 @@ namespace MusicTypeChat
                 var appSettings = appHost.AppSettings;
                 appHost.Plugins.Add(new AuthFeature(() => new CustomUserSession(),
                     new IAuthProvider[] {
-                        new CredentialsAuthProvider(appSettings),     /* Sign In with Username / Password credentials */
-                        new FacebookAuthProvider(appSettings),        /* Create App https://developers.facebook.com/apps */
-                        new GoogleAuthProvider(appSettings),          /* Create App https://console.developers.google.com/apis/credentials */
-                        new MicrosoftGraphAuthProvider(appSettings),  /* Create App https://apps.dev.microsoft.com */
                         new SpotifyAuthProvider(appSettings)
                         {
                             Scopes = new[]
@@ -46,7 +42,9 @@ namespace MusicTypeChat
                                 "user-read-private",
                                 "user-read-email",
                                 "app-remote-control",
-                                "user-modify-playback-state"
+                                "user-modify-playback-state",
+                                "user-read-playback-state",
+                                "user-read-currently-playing"
                             }
                         }         /* Create App https://developer.spotify.com/my-applications */
                     }) {

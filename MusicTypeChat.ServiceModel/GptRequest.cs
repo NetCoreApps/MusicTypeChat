@@ -28,7 +28,7 @@ public class TypeChatStep
     [DataMember(Name = "@func")]
     public string Func { get; set; }
     [DataMember(Name = "@args")]
-    public List<object> Args { get; set; }
+    public List<object>? Args { get; set; }
 }
 
 [DataContract]

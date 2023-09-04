@@ -10,8 +10,9 @@ public class Hello : IReturn<HelloResponse>
     public string? Name { get; set; }
 }
 
-public class ProcessSpotifyCommand : GptRequestBase<SpotifyCommand>
+public class ProcessSpotifyCommand : IReturn<SpotifyCommand>
 {
+    public string UserMessage { get; set; }
 }
 
 public class HelloResponse
