@@ -14,11 +14,22 @@ let schemaName = ""
 if (!useProgram) {
     const firstInterfacePos = schema.indexOf('export interface ')
     const firstTypePos = schema.indexOf('export type ')
-    const endPos = schema.indexOf('{', firstInterfacePos)
-    schemaName = firstInterfacePos !== -1 && firstInterfacePos < firstTypePos
-        ? schema.substring(firstInterfacePos + 'export interface '.length, endPos).trim()
-        : schema.substring(firstTypePos + 'export type '.length, endPos).trim()
+    const endInterfacePos = schema.indexOf('{', firstInterfacePos)
+    const endTypePos = schema.indexOf(' = {', firstTypePos)
+    if(firstInterfacePos === -1 && firstTypePos === -1) {
+        console.log(JSON.stringify({
+            responseStatus: {
+                errorCode: 'Error',
+                message: "No interface or type found in schema"
+            }
+        }, undefined, 2))
+    }
+    schemaName = firstInterfacePos !== -1 && (firstTypePos === -1 || firstInterfacePos < firstTypePos)
+        ? schema.substring(firstInterfacePos + 'export interface '.length, endInterfacePos).trim()
+        : schema.substring(firstTypePos + 'export type '.length, endTypePos).trim()
 }
+
+
 
 const translator = useProgram
     ? createProgramTranslator(model, schema)
