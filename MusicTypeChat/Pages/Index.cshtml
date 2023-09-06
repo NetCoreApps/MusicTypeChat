@@ -14,12 +14,15 @@
                 <a href="https://vuejs.org" class="@Css.LinkUnderline">Vue.js</a>,
                 <a href="https://htmx.org" class="@Css.LinkUnderline">htmx</a> &amp; Markdown
             </h4>
-            <div class="flex justify-between items-center">
-                <div id="hello-api" class="mr-4"></div>
-                @Html.SrcComponent("HelloApi.mjs", size:"w-8 h-8 mt-2")
-            </div>
         </div>
     </section>
+</div>
+
+<div class="container mx-auto px-5">
+    <div class="flex justify-between items-center">
+        <div id="audio-recorder-component" class="mr-4 w-full"></div>
+        @Html.SrcComponent("MusicAudio.mjs", size:"w-8 h-8 mt-2")
+    </div>
 </div>
 
 <div class="container mx-auto px-5">
@@ -154,9 +157,9 @@
 
 <script type="module">
 import { mount } from "/mjs/app.mjs"
-import HelloApi from "/mjs/components/HelloApi.mjs" 
+import AudioRecorderComponent from "/mjs/components/MusicAudio.mjs"
 import GettingStarted from "/mjs/components/GettingStarted.mjs" 
 
-mount('#hello-api', HelloApi, { value: 'Vue.mjs' })
+mount('#audio-recorder-component', AudioRecorderComponent)
 mount('#getting-started', GettingStarted, { template:'vue-mjs' })
 </script>

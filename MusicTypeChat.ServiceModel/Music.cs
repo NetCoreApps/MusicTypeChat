@@ -15,7 +15,7 @@ public class HelloResponse
 }
 
 [DataContract]
-public class SpotifyCommand : TypeChatProgramResponse
+public class SpotifyCommand : TypeChatProgramDetails
 {
     
 }
@@ -50,4 +50,11 @@ public class TranscribeAudio : ICreateDb<Recording>, IReturn<Recording>
 {
     [Input(Type="file"), UploadTo("recordings")]
     public string Path { get; set; }
+}
+
+public class TypeChatProgramDetails
+{
+    public List<object> StepResults { get; set; } = new List<object>();
+    public object? Result { get; set; }
+    public List<TypeChatStep> Steps { get; set; } = new List<TypeChatStep>();
 }

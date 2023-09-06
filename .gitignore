@@ -10,6 +10,8 @@ lib/
 blog/
 package-lock.json
 App_Data/
+MusicTypeChat/recordings/
+MusicTypeChat/speech-to-text/
 
 # User-specific files
 *.suo

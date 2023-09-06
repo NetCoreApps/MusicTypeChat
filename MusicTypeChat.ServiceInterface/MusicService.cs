@@ -33,23 +33,24 @@ public class MusicService : Service
         {
             {"SpotifyToken",session.AccessToken}
         });
-        return programResult;
+        return programResult.RunDetails;
     }
     
-    private async Task<object> BindAndRun<T>(TypeChatProgramResponse mathResult, Dictionary<string, string>? config = null) where T : TypeChatProgramBase, new() 
+    private async Task<TypeChatProgramBase> BindAndRun<T>(TypeChatProgramResponse mathResult, Dictionary<string, string>? config = null) where T : TypeChatProgramBase, new() 
     {
         var prog = new T { Config = config ?? new Dictionary<string, string>() };
         prog.Init();
 
         var steps = mathResult.Steps;
         object? result = null;
+        prog.RunDetails.Steps = new List<TypeChatStep>();
         foreach (var step in steps)
         {
             result = await ProcessStep(step, prog);
-            prog.StepResults.Add(result);
+            prog.RunDetails.StepResults.Add(result);
         }
 
-        return result;
+        return prog;
     }
     
     private async Task<object> ProcessStep<T>(TypeChatStep step, T prog) where T : TypeChatProgramBase,new()
@@ -74,7 +75,7 @@ public class MusicService : Service
                 // Handle reference or nested function
                 if (dict.TryGetValue("@ref", out var refVal))
                 {
-                    paramValues[i] = prog.StepResults[(int)refVal];
+                    paramValues[i] = prog.RunDetails.StepResults[(int)refVal];
                     continue;
                 }
 
@@ -122,8 +123,11 @@ public class MusicService : Service
             // For synchronous methods
             result = method.Invoke(prog, paramValues);
         }
+        
+        prog.RunDetails.StepResults.Add(result);
+        prog.RunDetails.Steps.Add(step);
 
-
+        // If the method returns a custom type, the result is already of that type
         return result;
     }
 }

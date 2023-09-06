@@ -1,6 +1,6 @@
 /* Options:
-Date: 2023-05-25 16:12:17
-Version: 6.81
+Date: 2023-09-06 16:50:15
+Version: 6.101
 Tip: To override a DTO option, remove "//" prefix before updating
 BaseUrl: https://localhost:5001
 
@@ -13,6 +13,34 @@ BaseUrl: https://localhost:5001
 */
 
 "use strict";
+export class Recording {
+    /** @param {{id?:number,path?:string,transcript?:string,transcriptConfidence?:number,transcriptResponse?:string,createdDate?:string,transcribeStart?:string,transcribeEnd?:string,transcribeDurationMs?:number,durationMs?:number,ipAddress?:string,error?:string}} [init] */
+    constructor(init) { Object.assign(this, init) }
+    /** @type {number} */
+    id;
+    /** @type {string} */
+    path;
+    /** @type {?string} */
+    transcript;
+    /** @type {?number} */
+    transcriptConfidence;
+    /** @type {?string} */
+    transcriptResponse;
+    /** @type {string} */
+    createdDate;
+    /** @type {?string} */
+    transcribeStart;
+    /** @type {?string} */
+    transcribeEnd;
+    /** @type {?number} */
+    transcribeDurationMs;
+    /** @type {?number} */
+    durationMs;
+    /** @type {?string} */
+    ipAddress;
+    /** @type {?string} */
+    error;
+}
 export class QueryBase {
     /** @param {{skip?:number,take?:number,orderBy?:string,orderByDesc?:string,include?:string,fields?:string,meta?:{ [index: string]: string; }}} [init] */
     constructor(init) { Object.assign(this, init) }
@@ -104,6 +132,20 @@ export class Booking extends AuditBase {
     /** @type {?boolean} */
     cancelled;
 }
+export class TypeChatStep {
+    /** @param {{_func?:string,_args?:Object[]}} [init] */
+    constructor(init) { Object.assign(this, init) }
+    /** @type {string} */
+    _func;
+    /** @type {Object[]} */
+    _args;
+}
+export class TypeChatProgramResponse {
+    /** @param {{_steps?:TypeChatStep[]}} [init] */
+    constructor(init) { Object.assign(this, init) }
+    /** @type {TypeChatStep[]} */
+    _steps;
+}
 export class PageStats {
     /** @param {{label?:string,total?:number}} [init] */
     constructor(init) { Object.assign(this, init) }
@@ -137,6 +179,10 @@ export class ResponseStatus {
     errors;
     /** @type {{ [index: string]: string; }} */
     meta;
+}
+export class SpotifyCommand extends TypeChatProgramResponse {
+    /** @param {{_steps?:TypeChatStep[]}} [init] */
+    constructor(init) { super(init); Object.assign(this, init) }
 }
 export class HelloResponse {
     /** @param {{result?:string}} [init] */
@@ -259,6 +305,15 @@ export class IdResponse {
     /** @type {ResponseStatus} */
     responseStatus;
 }
+export class ProcessSpotifyCommand {
+    /** @param {{userMessage?:string}} [init] */
+    constructor(init) { Object.assign(this, init) }
+    /** @type {string} */
+    userMessage;
+    getTypeName() { return 'ProcessSpotifyCommand' }
+    getMethod() { return 'POST' }
+    createResponse() { return new SpotifyCommand() }
+}
 export class Hello {
     /** @param {{name?:string}} [init] */
     constructor(init) { Object.assign(this, init) }
@@ -273,6 +328,15 @@ export class AdminData {
     getTypeName() { return 'AdminData' }
     getMethod() { return 'GET' }
     createResponse() { return new AdminDataResponse() }
+}
+export class TranscribeAudio {
+    /** @param {{path?:string}} [init] */
+    constructor(init) { Object.assign(this, init) }
+    /** @type {string} */
+    path;
+    getTypeName() { return 'TranscribeAudio' }
+    getMethod() { return 'POST' }
+    createResponse() { return new Recording() }
 }
 export class QueryTodos extends QueryData {
     /** @param {{id?:number,ids?:number[],textContains?:string,skip?:number,take?:number,orderBy?:string,orderByDesc?:string,include?:string,fields?:string,meta?:{ [index: string]: string; }}} [init] */
@@ -319,7 +383,7 @@ export class DeleteTodos {
     createResponse() { }
 }
 export class Authenticate {
-    /** @param {{provider?:string,state?:string,oauth_token?:string,oauth_verifier?:string,userName?:string,password?:string,rememberMe?:boolean,errorView?:string,nonce?:string,uri?:string,response?:string,qop?:string,nc?:string,cnonce?:string,accessToken?:string,accessTokenSecret?:string,scope?:string,meta?:{ [index: string]: string; }}} [init] */
+    /** @param {{provider?:string,state?:string,oauth_token?:string,oauth_verifier?:string,userName?:string,password?:string,rememberMe?:boolean,errorView?:string,nonce?:string,uri?:string,response?:string,qop?:string,nc?:string,cnonce?:string,accessToken?:string,accessTokenSecret?:string,scope?:string,returnUrl?:string,meta?:{ [index: string]: string; }}} [init] */
     constructor(init) { Object.assign(this, init) }
     /**
      * @type {string}
@@ -357,6 +421,8 @@ export class Authenticate {
     accessTokenSecret;
     /** @type {string} */
     scope;
+    /** @type {string} */
+    returnUrl;
     /** @type {{ [index: string]: string; }} */
     meta;
     getTypeName() { return 'Authenticate' }

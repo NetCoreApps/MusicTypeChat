@@ -3,6 +3,7 @@ import { JsonApiClient, $1, $$ } from "@servicestack/client"
 import ServiceStackVue from "@servicestack/vue"
 import HelloApi from "./components/HelloApi.mjs"
 import SrcLink from "./components/SrcLink.mjs"
+import AudioRecorderComponent from "./components/MusicAudio.mjs";
 import VueComponentGallery from "./components/VueComponentGallery.mjs"
 import VueComponentLibrary from "./components/VueComponentLibrary.mjs"
 
@@ -46,6 +47,7 @@ const Components = {
     Plugin,
     VueComponentGallery,
     VueComponentLibrary,
+    AudioRecorderComponent
 }
 
 const alreadyMounted = el => el.__vue_app__ 

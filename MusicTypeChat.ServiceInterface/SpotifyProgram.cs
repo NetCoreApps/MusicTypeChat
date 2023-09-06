@@ -1,4 +1,5 @@
-﻿using ServiceStack;
+﻿using MusicTypeChat.ServiceModel;
+using ServiceStack;
 using SpotifyAPI.Web;
 
 namespace MusicTypeChat.ServiceInterface;
@@ -102,6 +103,20 @@ public class SpotifyProgram : TypeChatProgramBase
     {
         await _spotifyClient.Player.SetVolume(new PlayerVolumeRequest(newVolumeLevel));
     }
+
+    public async Task<TrackList> getAlbum(string name)
+    {
+        var result = await _spotifyClient.Search.Item(new SearchRequest(SearchRequest.Types.Album, name));
+        var trackResult = new TrackList();
+        if (result.Albums.Items != null)
+        {
+            var album = result.Albums.Items.First();
+            var albumTracks = await _spotifyClient.Albums.GetTracks(album.Id);
+            trackResult.AddRange(albumTracks.Items.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = album.Name }));
+        }
+
+        return trackResult;
+    }
     
     public void unknownAction(string text)
     {
@@ -138,17 +153,19 @@ public enum SpotifyFilterType
 
 public class TypeChatProgramBase
 {
-    public List<object> StepResults { get; set; } = new List<object>();
+    public TypeChatProgramDetails RunDetails { get; set; }
     public Dictionary<string, string> Config { get; set; }
 
     public TypeChatProgramBase()
     {
         Config = new Dictionary<string, string>();
+        RunDetails = new TypeChatProgramDetails();
     }
 
     public TypeChatProgramBase(Dictionary<string, string> config)
     {
         Config = config ?? new Dictionary<string, string>();
+        RunDetails = new TypeChatProgramDetails();
     }
 
     public virtual void Init()
@@ -156,3 +173,4 @@ public class TypeChatProgramBase
         
     }
 }
+
