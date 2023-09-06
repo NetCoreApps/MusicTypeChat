@@ -1,5 +1,6 @@
 using ServiceStack;
 using MusicTypeChat.ServiceModel;
+using MusicTypeChat.ServiceModel.Types;
 using ServiceStack.Gpt;
 using ServiceStack.OrmLite;
 using ServiceStack.Text;
@@ -34,278 +35,57 @@ public class MyServices : Service
         };
     }
     
-    public ITypeChatProvider TypeChatProvider { get; set; }
-    public IPromptProvider PromptProvider { get; set; }
-    public AppConfig Config { get; set; }
+    public ISpeechToText SpeechToText { get; set; }
+    public IAutoQueryDb AutoQuery { get; set; }
     
-    public TypeChatRequest CreateTypeChatRequest(string userMessage) => new(PromptProvider, userMessage) {
-        NodePath = Config.NodePath,
-        NodeProcessTimeoutMs = Config.NodeProcessTimeoutMs,
-        WorkingDirectory = Environment.CurrentDirectory,
-        SchemaPath = Config.SiteConfig.GptPath.CombineWith("schema.ts"),
-        TypeChatTranslator = TypeChatTranslator.Program
-    };
-    
- 
-    public async Task<object> Post(ProcessSpotifyCommand request)
+    public async Task<object> Any(TranscribeAudio request)
     {
-        var session = GetSession().GetAuthTokens("spotify");
-        if(session == null)
-            throw new Exception("Spotify session not found");
-        var program =
-            await TypeChatProvider.TranslateMessageAsync(CreateTypeChatRequest(request.UserMessage));
+        var recording = (Recording)await AutoQuery.CreateAsync(request, Request);
 
-        var programRequest = program.Result.FromJson<TypeChatProgramResponse>();
-        var programResult = await BindAndRun<SpotifyProgram>(programRequest, new Dictionary<string, string>
-        {
-            {"SpotifyToken",session.AccessToken}
-        });
-        return programResult;
-    }
-    
-    private async Task<object> BindAndRun<T>(TypeChatProgramResponse mathResult, Dictionary<string, string>? config = null) where T : TypeChatProgramBase, new() 
-    {
-        var prog = new T { Config = config ?? new Dictionary<string, string>() };
-        prog.Init();
+        var transcribeStart = DateTime.UtcNow;
+        await Db.UpdateOnlyAsync(() => new Recording { TranscribeStart = transcribeStart },
+            where: x => x.Id == recording.Id);
 
-        var steps = mathResult.Steps;
-        object? result = null;
-        foreach (var step in steps)
+        try
         {
-            result = await ProcessStep(step, prog);
-            prog.StepResults.Add(result);
+            var result = await SpeechToText.TranscribeAsync(request.Path);
+            var transcribeEnd = DateTime.UtcNow;
+            await Db.UpdateOnlyAsync(() => new Recording
+            {
+                Transcript = result.Transcript,
+                TranscriptConfidence = result.Confidence,
+                TranscriptResponse = result.ApiResponse,
+                TranscribeEnd = transcribeEnd,
+                TranscribeDurationMs = (int)(transcribeEnd - transcribeStart).TotalMilliseconds,
+            }, where: x => x.Id == recording.Id);
+        }
+        catch (Exception e)
+        {
+            await Db.UpdateOnlyAsync(() => new Recording { Error = e.Message },
+                where: x => x.Id == recording.Id);
         }
 
-        return result;
+        recording = await Db.SingleByIdAsync<Recording>(recording.Id);
+
+        WriteJsonFile($"/speech-to-text/{recording.CreatedDate:yyyy/MM/dd}/{recording.CreatedDate.TimeOfDay.TotalMilliseconds}.json", 
+            recording.ToJson());
+
+        return recording;
     }
     
-    private async Task<object> ProcessStep<T>(TypeChatStep step, T prog) where T : TypeChatProgramBase,new()
+    void WriteJsonFile(string path, string json)
     {
-        var func = step.Func;
-        var args = step.Args ?? new List<object>();
-        var method = typeof(T).GetMethod(func);
-
-        if (method == null)
-            throw new NotSupportedException($"Unsupported func: {func}");
-
-        var methodParams = method.GetParameters();
-        var paramValues = new object[methodParams.Length];
-        
-        for (int i = 0; i < args.Count; i++)
-        {
-            var param = methodParams[i];
-            var arg = args[i];
-
-            if (arg is Dictionary<string, object> dict)
+        ThreadPool.QueueUserWorkItem(_ => {
+            try
             {
-                // Handle reference or nested function
-                if (dict.TryGetValue("@ref", out var refVal))
-                {
-                    paramValues[i] = prog.StepResults[(int)refVal];
-                    continue;
-                }
-
-                if (dict.TryGetValue("@func", out var funcVal))
-                {
-                    var innerStep = dict.ToJson().FromJson<TypeChatStep>();
-                    paramValues[i] = ProcessStep<T>(innerStep, prog);
-                    continue;
-                }
+                VirtualFiles.WriteFile(path, json);
             }
-
-            if (param.ParameterType == typeof(String) || param.ParameterType is { IsValueType: true, IsEnum: false })
-            {
-                // For value types, use Convert.ChangeType
-                paramValues[i] = Convert.ChangeType(arg, Nullable.GetUnderlyingType(param.ParameterType) ?? param.ParameterType);
-            }
-            else
-            {
-                // For reference types, deserialize from JSON
-                string jsonArg = arg.ToJson();
-                paramValues[i] = JsonSerializer.DeserializeFromString(jsonArg, param.ParameterType);
-            }
-        }
-
-        object result = null;
-        if (typeof(Task).IsAssignableFrom(method.ReturnType))
-        {
-            // The method is async, await the result
-            var task = (Task)method.Invoke(prog, paramValues);
-            await task;
-
-            // If the method returns a Task<T>, unwrap the result
-            if (task.GetType().IsGenericType)
-            {
-                var resultProperty = task.GetType().GetProperty("Result");
-                if (resultProperty != null)
-                {
-                    result = resultProperty.GetValue(task);
-                }
-            }
-            // No else needed for Task, as result is already null
-        }
-        else
-        {
-            // For synchronous methods
-            result = method.Invoke(prog, paramValues);
-        }
-
-
-        return result;
-    }
-
-}
-
-public class SpotifyProgram : TypeChatProgramBase
-{
-    private SpotifyClient _spotifyClient;
-    
-    public override void Init()
-    {
-        _spotifyClient = new SpotifyClient(Config["SpotifyToken"]);
-    }
-    
-    public async Task play(TrackList trackList, int? startIndex = null, int? count = null)
-    {
-        var tracks = trackList.Skip(startIndex ?? 0).Take(count ?? trackList.Count);
-        var uris = tracks.Map(x => x.Uri);
-        await _spotifyClient.Player.ResumePlayback(new PlayerResumePlaybackRequest {
-            Uris = uris.ToList(),
+            catch (Exception ignore) {}
         });
     }
-
-    public async Task<TrackList> searchTracks(string query, SearchRequest.Types filterType = SearchRequest.Types.Track)
-    {
-        var result = await _spotifyClient.Search.Item(new SearchRequest(filterType, query));
-
-        List<Track> tracks = new TrackList();
-        var tracksList = new TrackList();
-        switch (filterType)
-        {
-            case SearchRequest.Types.Album:
-                var tRes = await _spotifyClient.Albums.GetSeveral(new AlbumsRequest(result.Albums.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
-                tracks.AddRange(tRes.Albums.Select(x =>
-                    {
-                        return x.Tracks.Items?.Select(y => new Track { Name = y.Name, Uri = y.Uri, Album = x.Name });
-                    })
-                    .SelectMany(x => x ?? new List<Track>())
-                    .Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Name}));
-                break;
-            case SearchRequest.Types.Artist:
-                var aRes = await _spotifyClient.Artists.GetSeveral(new ArtistsRequest(result.Artists.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
-                var aTracks = await _spotifyClient.Artists.GetTopTracks(aRes.Artists.First().Id, new ArtistsTopTracksRequest("US"));
-                tracks.AddRange(aTracks.Tracks.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Album.Name}));
-                break;
-            case SearchRequest.Types.Track:
-                tracks = result.Tracks.Items?.Select(x => new Track { Name = x.Name, Uri = x.Uri }).ToList() ?? new TrackList();
-                break;
-        }
-        
-        tracksList.AddRange(tracks);
-
-        return tracksList;
-    }
-
-    public async Task<List<Track>> getQueue()
-    {
-        // Logic to fetch and display upcoming tracks in the queue
-        var queueResponse = await _spotifyClient.Player.GetQueue();
-        var tracks = queueResponse.Queue.Where(x => x.Type == ItemType.Track).Select(x => x as SpotifyAPI.Web.FullTrack).ToList();
-        return tracks.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Album.Name}).ToList();
-    }
-
-    public async Task<CurrentlyPlayingContext> status()
-    {
-        var playback = await _spotifyClient.Player.GetCurrentPlayback();
-        // Logic to display the current playback status
-        return playback;
-    }
-
-    public async Task pause()
-    {
-        await _spotifyClient.Player.PausePlayback();
-    }
-
-    public async Task next()
-    {
-        await _spotifyClient.Player.SkipNext();
-    }
-
-    public async Task previous()
-    {
-        await _spotifyClient.Player.SkipPrevious();
-    }
-
-    public async Task shuffleOn()
-    {
-        await _spotifyClient.Player.SetShuffle(new PlayerShuffleRequest(true));
-    }
-
-    public async Task shuffleOff()
-    {
-        await _spotifyClient.Player.SetShuffle(new PlayerShuffleRequest(false));
-    }
-
-    public async Task resume()
-    {
-        await _spotifyClient.Player.ResumePlayback();
-    }
-
-    public async Task setVolume(int newVolumeLevel)
-    {
-        await _spotifyClient.Player.SetVolume(new PlayerVolumeRequest(newVolumeLevel));
-    }
     
-    public void unknownAction(string text)
-    {
-        // Logic for unknown actions
-    }
-
-    public void nonMusicQuestion(string text)
-    {
-        // Logic for non-music questions
-    }
+    
 
 }
 
-public class Track
-{
-    public string Name { get; set; }
-    public string Uri { get; set; }
-    public string Album { get; set; }
-}
 
-public class TrackList : List<Track> { }
-
-public class Playlist : TrackList
-{
-    public string Id { get; set; }
-}
-
-public enum SpotifyFilterType
-{
-    Album,
-    Artist,
-    Track
-}
-
-public class TypeChatProgramBase
-{
-    public List<object> StepResults { get; set; } = new List<object>();
-    public Dictionary<string, string> Config { get; set; }
-
-    public TypeChatProgramBase()
-    {
-        Config = new Dictionary<string, string>();
-    }
-
-    public TypeChatProgramBase(Dictionary<string, string> config)
-    {
-        Config = config ?? new Dictionary<string, string>();
-    }
-
-    public virtual void Init()
-    {
-        
-    }
-}
