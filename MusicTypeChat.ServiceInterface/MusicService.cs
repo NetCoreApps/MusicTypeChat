@@ -11,7 +11,7 @@ public class MusicService : Service
     public IPromptProvider PromptProvider { get; set; }
     public AppConfig Config { get; set; }
     
-    public TypeChatRequest CreateTypeChatRequest(string userMessage) => new(PromptProvider, userMessage) {
+    public TypeChatRequest CreateTypeChatRequest(string schema, string prompt,string userMessage) => new(schema, prompt, userMessage) {
         NodePath = Config.NodePath,
         NodeProcessTimeoutMs = Config.NodeProcessTimeoutMs,
         WorkingDirectory = Environment.CurrentDirectory,
@@ -25,8 +25,9 @@ public class MusicService : Service
         var session = GetSession().GetAuthTokens("spotify");
         if(session == null)
             throw new Exception("Spotify session not found");
-        var program =
-            await TypeChatProvider.TranslateMessageAsync(CreateTypeChatRequest(request.UserMessage));
+        var schema = await PromptProvider.CreateSchemaAsync();
+        var prompt = await PromptProvider.CreatePromptAsync(request.UserMessage);
+        var program = await TypeChatProvider.TranslateMessageAsync(CreateTypeChatRequest(schema, prompt, request.UserMessage));
 
         var programRequest = program.Result.FromJson<TypeChatProgramResponse>();
         var programResult = await BindAndRun<SpotifyProgram>(programRequest, new Dictionary<string, string>

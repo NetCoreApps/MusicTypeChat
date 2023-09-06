@@ -4,6 +4,6 @@ schema |> raw
 ```
 The following is a user request:
 """
-request |> raw
+userMessage |> raw
 """
 The following is the user request translated into a JSON object with 2 spaces of indentation and no properties with the value undefined:
