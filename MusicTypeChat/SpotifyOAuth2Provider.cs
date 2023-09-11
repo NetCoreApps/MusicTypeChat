@@ -82,21 +82,19 @@ public class SpotifyAuthProvider : OAuth2Provider
         var json = await DefaultUserProfileUrl
             .GetJsonFromUrlAsync(request => { request.Headers.Add("Authorization", "Bearer " + accessToken); },
                 token: token).ConfigAwait();
-        var obj = JsonObject.Parse(json);
+        var obj = (Dictionary<string,object>) JSON.parse(json);
         
         obj.Add("name", obj["display_name"]);
         obj.MoveKey("id", "user_id");
-        if (obj.ContainsKey("images") && !string.IsNullOrEmpty(obj["images"]))
+        if (obj.TryGetValue("images", out var oImages) && oImages is List<object> { Count: > 0 } images)
         {
-            if (JsonNode.Parse(obj["images"]) is JsonArray { Count: > 0 } imagesArray)
+            var firstImage = (Dictionary<string, object>)images[0];
+            if (firstImage.TryGetValue("url", out var oUrl) && oUrl is string url)
             {
-                var firstImage = imagesArray[0]?.AsObject();
-                if (firstImage != null && ((IDictionary<string, JsonNode?>)firstImage).TryGetValue("url", out var value))
-                {
-                    obj[AuthMetadataProvider.ProfileUrlKey] = value?.ToString();
-                }
+                obj[AuthMetadataProvider.ProfileUrlKey] = url;
             }
         }
-        return obj;
+        var objStr = obj.ToStringDictionary();
+        return objStr;
     }
 }
