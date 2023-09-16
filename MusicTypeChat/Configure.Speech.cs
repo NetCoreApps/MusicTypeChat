@@ -1,9 +1,11 @@
-﻿using Google.Cloud.Speech.V2;
-using MusicTypeChat.ServiceInterface;
-using ServiceStack.Gpt;
+﻿using ServiceStack.AI;
 using ServiceStack.IO;
+using ServiceStack.GoogleCloud;
+using Google.Cloud.Speech.V2;
+using MusicTypeChat.ServiceInterface;
+using MusicTypeChat.ServiceModel;
 
-[assembly: HostingStartup(typeof(ConfigureSpeech))]
+[assembly: HostingStartup(typeof(MusicTypeChat.ConfigureSpeech))]
 
 namespace MusicTypeChat;
 
@@ -18,9 +20,19 @@ public class ConfigureSpeech : IHostingStartup
             if (speechProvider == nameof(GoogleCloudSpeechToText))
             {
                 AppHost.AssertGoogleCloudCredentials();
-                services.AddSingleton(SpeechClient.Create());
-                services.AddSingleton<ISpeechToText>(c =>
-                    new GoogleCloudSpeechToText(c.Resolve<AppConfig>().GoogleCloudSpeechConfig(), c.Resolve<SpeechClient>()));
+                services.AddSingleton<ISpeechToText>(c => new GoogleCloudSpeechToText(
+                    X.Map(c.Resolve<AppConfig>(), config =>
+                    {
+                        var siteConfig = config.GetSiteConfig(Tags.Music);
+                        return new GoogleCloudSpeechConfig
+                        {
+                            Project = config.Project,
+                            Location = config.Location,
+                            Bucket = siteConfig.Bucket,
+                            RecognizerId = siteConfig.RecognizerId,
+                            PhraseSetId = siteConfig.PhraseSetId,
+                        };
+                    })!, SpeechClient.Create()));
             }
             else if (speechProvider == nameof(WhisperApiSpeechToText))
             {
@@ -29,7 +41,7 @@ public class ConfigureSpeech : IHostingStartup
             else if (speechProvider == nameof(WhisperLocalSpeechToText))
             {
                 services.AddSingleton<ISpeechToText>(c => new WhisperLocalSpeechToText {
-                    WhisperPath = c.Resolve<AppConfig>().WhisperPath,
+                    WhisperPath = c.Resolve<AppConfig>().WhisperPath ?? ProcessUtils.FindExePath("whisper"),
                     TimeoutMs = c.Resolve<AppConfig>().NodeProcessTimeoutMs,
                 });
             }

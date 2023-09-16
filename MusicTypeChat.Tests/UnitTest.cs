@@ -2,7 +2,6 @@ using NUnit.Framework;
 using ServiceStack;
 using ServiceStack.Testing;
 using MusicTypeChat.ServiceInterface;
-using MusicTypeChat.ServiceModel;
 
 namespace MusicTypeChat.Tests;
 
@@ -13,19 +12,9 @@ public class UnitTest
     public UnitTest()
     {
         appHost = new BasicAppHost().Init();
-        appHost.Container.AddTransient<MyServices>();
+        appHost.Container.AddTransient<GptServices>();
     }
 
     [OneTimeTearDown]
     public void OneTimeTearDown() => appHost.Dispose();
-
-    [Test]
-    public void Can_call_MyServices()
-    {
-        var service = appHost.Container.Resolve<MyServices>();
-
-        var response = (HelloResponse)service.Any(new Hello { Name = "World" });
-
-        Assert.That(response.Result, Is.EqualTo("Hello, World!"));
-    }
 }

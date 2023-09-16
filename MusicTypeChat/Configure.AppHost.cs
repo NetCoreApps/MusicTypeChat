@@ -1,12 +1,9 @@
 using Funq;
-using MusicTypeChat.ServiceInterface;
 using ServiceStack.Configuration;
-using ServiceStack.DataAnnotations;
 using ServiceStack.Host;
 using ServiceStack.IO;
-using ServiceStack.NativeTypes;
 using ServiceStack.Web;
-using SpotifyAPI.Web;
+using MusicTypeChat.ServiceInterface;
 
 [assembly: HostingStartup(typeof(MusicTypeChat.AppHost))]
 
@@ -30,7 +27,7 @@ public class AppHost : AppHostBase, IHostingStartup
             }
         });
 
-    public AppHost() : base("MusicTypeChat", typeof(MyServices).Assembly) {}
+    public AppHost() : base("MusicTypeChat", typeof(GptServices).Assembly) {}
 
     public override void Configure(Container container)
     {

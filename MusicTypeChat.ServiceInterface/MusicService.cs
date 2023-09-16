@@ -1,60 +1,70 @@
 ﻿using MusicTypeChat.ServiceModel;
 using ServiceStack;
-using ServiceStack.Gpt;
+using ServiceStack.AI;
 using ServiceStack.Text;
+using SpotifyAPI.Web;
 
 namespace MusicTypeChat.ServiceInterface;
 
 public class MusicService : Service
 {
-    public ITypeChatProvider TypeChatProvider { get; set; }
-    public IPromptProvider PromptProvider { get; set; }
-    public AppConfig Config { get; set; }
-    
-    public TypeChatRequest CreateTypeChatRequest(string schema, string prompt,string userMessage) => new(schema, prompt, userMessage) {
-        NodePath = Config.NodePath,
-        NodeProcessTimeoutMs = Config.NodeProcessTimeoutMs,
-        WorkingDirectory = Environment.CurrentDirectory,
-        SchemaPath = Config.SiteConfig.GptPath.CombineWith("schema.ts"),
-        TypeChatTranslator = TypeChatTranslator.Program
-    };
-    
- 
-    public async Task<object> Post(ProcessSpotifyCommand request)
+    public async Task<object> Post(CreateSpotifyChat request)
     {
-        var session = GetSession().GetAuthTokens("spotify");
-        if(session == null)
-            throw new Exception("Spotify session not found");
-        var schema = await PromptProvider.CreateSchemaAsync();
-        var prompt = await PromptProvider.CreatePromptAsync(request.UserMessage);
-        var program = await TypeChatProvider.TranslateMessageAsync(CreateTypeChatRequest(schema, prompt, request.UserMessage));
-
-        var programRequest = program.Result.FromJson<TypeChatProgramResponse>();
-        var programResult = await BindAndRun<SpotifyProgram>(programRequest, new Dictionary<string, string>
+        var chat = await Gateway.SendAsync(new CreateChat
         {
-            {"SpotifyToken",session.AccessToken}
+            Feature = Tags.Music, 
+            UserMessage = request.UserMessage, 
+            Translator = TypeChatTranslator.Program,
         });
-        return programResult.RunDetails;
+
+        var programRequest = chat.ChatResponse.FromJson<TypeChatProgramResponse>();
+        var spotifySession = (await GetSessionAsync()).GetAuthTokens("spotify");
+        if (spotifySession != null)
+        {
+            try
+            {
+                var programResult = await BindAndRun<SpotifyProgram>(programRequest, new Dictionary<string, string>
+                {
+                    ["SpotifyToken"] = spotifySession.AccessToken
+                });
+                return X.Map(programResult.RunDetails, r => new CreateSpotifyChatResponse
+                {
+                    StepResults = r.StepResults,
+                    Result = r.Result,
+                    Steps = r.Steps,
+                })!;
+            }
+            catch (APIException e)
+            {
+                if (!e.Message.Contains("premium required", StringComparison.OrdinalIgnoreCase))
+                    throw;
+            }
+        }
+        
+        return new CreateSpotifyChatResponse
+        {
+            Steps = programRequest.Steps 
+        };
     }
     
-    private async Task<TypeChatProgramBase> BindAndRun<T>(TypeChatProgramResponse mathResult, Dictionary<string, string>? config = null) where T : TypeChatProgramBase, new() 
+    private async Task<SpotifyProgramBase> BindAndRun<T>(TypeChatProgramResponse mathResult, Dictionary<string, string>? config = null) 
+        where T : SpotifyProgramBase, new() 
     {
         var prog = new T { Config = config ?? new Dictionary<string, string>() };
         prog.Init();
 
         var steps = mathResult.Steps;
-        object? result = null;
         prog.RunDetails.Steps = new List<TypeChatStep>();
         foreach (var step in steps)
         {
-            result = await ProcessStep(step, prog);
+            var result = await ProcessStep(step, prog);
             prog.RunDetails.StepResults.Add(result);
         }
 
         return prog;
     }
     
-    private async Task<object> ProcessStep<T>(TypeChatStep step, T prog) where T : TypeChatProgramBase,new()
+    private async Task<object> ProcessStep<T>(TypeChatStep step, T prog) where T : SpotifyProgramBase, new()
     {
         var func = step.Func;
         var args = step.Args ?? new();
@@ -101,11 +111,11 @@ public class MusicService : Service
             }
         }
 
-        object result = null;
+        object? result = null;
         if (typeof(Task).IsAssignableFrom(method.ReturnType))
         {
             // The method is async, await the result
-            var task = (Task)method.Invoke(prog, paramValues);
+            var task = (Task)method.Invoke(prog, paramValues)!;
             await task;
 
             // If the method returns a Task<T>, unwrap the result

@@ -4,44 +4,43 @@ using SpotifyAPI.Web;
 
 namespace MusicTypeChat.ServiceInterface;
 
-public class SpotifyProgram : TypeChatProgramBase
+public class SpotifyProgram : SpotifyProgramBase
 {
-    private SpotifyClient _spotifyClient;
+    private SpotifyClient spotifyClient;
     
     public override void Init()
     {
-        _spotifyClient = new SpotifyClient(Config["SpotifyToken"]);
+        spotifyClient = new SpotifyClient(Config["SpotifyToken"]);
     }
     
     public async Task play(TrackList trackList, int? startIndex = null, int? count = null)
     {
         var tracks = trackList.Skip(startIndex ?? 0).Take(count ?? trackList.Count);
         var uris = tracks.Map(x => x.Uri);
-        await _spotifyClient.Player.ResumePlayback(new PlayerResumePlaybackRequest {
+        await spotifyClient.Player.ResumePlayback(new PlayerResumePlaybackRequest {
             Uris = uris.ToList(),
         });
     }
 
     public async Task<TrackList> searchTracks(string query, SearchRequest.Types filterType = SearchRequest.Types.Track)
     {
-        var result = await _spotifyClient.Search.Item(new SearchRequest(filterType, query));
+        var result = await spotifyClient.Search.Item(new SearchRequest(filterType, query));
 
         List<Track> tracks = new TrackList();
         var tracksList = new TrackList();
         switch (filterType)
         {
             case SearchRequest.Types.Album:
-                var tRes = await _spotifyClient.Albums.GetSeveral(new AlbumsRequest(result.Albums.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
-                tracks.AddRange(tRes.Albums.Select(x =>
-                    {
+                var tRes = await spotifyClient.Albums.GetSeveral(new AlbumsRequest(result.Albums.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
+                tracks.AddRange(tRes.Albums.Select(x => {
                         return x.Tracks.Items?.Select(y => new Track { Name = y.Name, Uri = y.Uri, Album = x.Name });
                     })
                     .SelectMany(x => x ?? new List<Track>())
                     .Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Name}));
                 break;
             case SearchRequest.Types.Artist:
-                var aRes = await _spotifyClient.Artists.GetSeveral(new ArtistsRequest(result.Artists.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
-                var aTracks = await _spotifyClient.Artists.GetTopTracks(aRes.Artists.First().Id, new ArtistsTopTracksRequest("US"));
+                var aRes = await spotifyClient.Artists.GetSeveral(new ArtistsRequest(result.Artists.Items?.Select(x => x.Id).ToList() ?? new List<string>()));
+                var aTracks = await spotifyClient.Artists.GetTopTracks(aRes.Artists.First().Id, new ArtistsTopTracksRequest("US"));
                 tracks.AddRange(aTracks.Tracks.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Album.Name}));
                 break;
             case SearchRequest.Types.Track:
@@ -57,61 +56,61 @@ public class SpotifyProgram : TypeChatProgramBase
     public async Task<List<Track>> getQueue()
     {
         // Logic to fetch and display upcoming tracks in the queue
-        var queueResponse = await _spotifyClient.Player.GetQueue();
+        var queueResponse = await spotifyClient.Player.GetQueue();
         var tracks = queueResponse.Queue.Where(x => x.Type == ItemType.Track).Select(x => x as SpotifyAPI.Web.FullTrack).ToList();
         return tracks.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = x.Album.Name}).ToList();
     }
 
     public async Task<CurrentlyPlayingContext> status()
     {
-        var playback = await _spotifyClient.Player.GetCurrentPlayback();
+        var playback = await spotifyClient.Player.GetCurrentPlayback();
         // Logic to display the current playback status
         return playback;
     }
 
     public async Task pause()
     {
-        await _spotifyClient.Player.PausePlayback();
+        await spotifyClient.Player.PausePlayback();
     }
 
     public async Task next()
     {
-        await _spotifyClient.Player.SkipNext();
+        await spotifyClient.Player.SkipNext();
     }
 
     public async Task previous()
     {
-        await _spotifyClient.Player.SkipPrevious();
+        await spotifyClient.Player.SkipPrevious();
     }
 
     public async Task shuffleOn()
     {
-        await _spotifyClient.Player.SetShuffle(new PlayerShuffleRequest(true));
+        await spotifyClient.Player.SetShuffle(new PlayerShuffleRequest(true));
     }
 
     public async Task shuffleOff()
     {
-        await _spotifyClient.Player.SetShuffle(new PlayerShuffleRequest(false));
+        await spotifyClient.Player.SetShuffle(new PlayerShuffleRequest(false));
     }
 
     public async Task resume()
     {
-        await _spotifyClient.Player.ResumePlayback();
+        await spotifyClient.Player.ResumePlayback();
     }
 
     public async Task setVolume(int newVolumeLevel)
     {
-        await _spotifyClient.Player.SetVolume(new PlayerVolumeRequest(newVolumeLevel));
+        await spotifyClient.Player.SetVolume(new PlayerVolumeRequest(newVolumeLevel));
     }
 
     public async Task<TrackList> getAlbum(string name)
     {
-        var result = await _spotifyClient.Search.Item(new SearchRequest(SearchRequest.Types.Album, name));
+        var result = await spotifyClient.Search.Item(new SearchRequest(SearchRequest.Types.Album, name));
         var trackResult = new TrackList();
         if (result.Albums.Items != null)
         {
             var album = result.Albums.Items.First();
-            var albumTracks = await _spotifyClient.Albums.GetTracks(album.Id);
+            var albumTracks = await spotifyClient.Albums.GetTracks(album.Id);
             trackResult.AddRange(albumTracks.Items.Select(x => new Track { Name = x.Name, Uri = x.Uri, Album = album.Name }));
         }
 
@@ -151,26 +150,24 @@ public enum SpotifyFilterType
     Track
 }
 
-public class TypeChatProgramBase
+public class SpotifyProgramBase
 {
-    public TypeChatProgramDetails RunDetails { get; set; }
+    public SpotifyRunDetails RunDetails { get; set; }
     public Dictionary<string, string> Config { get; set; }
 
-    public TypeChatProgramBase()
+    public SpotifyProgramBase()
     {
         Config = new Dictionary<string, string>();
-        RunDetails = new TypeChatProgramDetails();
+        RunDetails = new SpotifyRunDetails();
     }
 
-    public TypeChatProgramBase(Dictionary<string, string> config)
+    public SpotifyProgramBase(Dictionary<string, string> config)
     {
-        Config = config ?? new Dictionary<string, string>();
-        RunDetails = new TypeChatProgramDetails();
+        Config = config;
+        RunDetails = new SpotifyRunDetails();
     }
 
     public virtual void Init()
     {
-        
     }
 }
-

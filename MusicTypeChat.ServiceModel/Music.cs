@@ -3,7 +3,7 @@ using ServiceStack;
 
 namespace MusicTypeChat.ServiceModel;
 
-public class ProcessSpotifyCommand : IReturn<SpotifyCommand>
+public class CreateSpotifyChat : IReturn<CreateSpotifyChatResponse>
 {
     public string UserMessage { get; set; }
 }
@@ -13,21 +13,22 @@ public class HelloResponse
     public string Result { get; set; } = default!;
 }
 
-[DataContract]
-public class SpotifyCommand : TypeChatProgramDetails
+public class CreateSpotifyChatResponse
 {
-    
+    public List<object> StepResults { get; set; } = new();
+    public object? Result { get; set; }
+    [DataMember(Name = "@steps")]
+    public List<TypeChatStep> Steps { get; set; } = new();
+    public ResponseStatus ResponseStatus { get; set; }
 }
 
 
-[DataContract]
 public class TypeChatProgramResponse
 {
     [DataMember(Name = "@steps")]
     public List<TypeChatStep> Steps { get; set; }
 }
 
-[DataContract]
 public class TypeChatStep
 {
     [DataMember(Name = "@func")]
@@ -36,24 +37,15 @@ public class TypeChatStep
     public List<object> Args { get; set; }
 }
 
-[DataContract]
 public class TypeChatRefArg
 {
     [DataMember(Name = "@ref")]
     public int Ref { get; set; }
 }
 
-[AutoPopulate(nameof(Recording.CreatedDate),  Eval = "utcNow")]
-[AutoPopulate(nameof(Recording.IpAddress),  Eval = "Request.RemoteIp")]
-public class TranscribeAudio : ICreateDb<Recording>, IReturn<Recording>
+public class SpotifyRunDetails
 {
-    [Input(Type="file"), UploadTo("recordings")]
-    public string Path { get; set; }
-}
-
-public class TypeChatProgramDetails
-{
-    public List<object> StepResults { get; set; } = new List<object>();
+    public List<object> StepResults { get; set; } = new();
     public object? Result { get; set; }
-    public List<TypeChatStep> Steps { get; set; } = new List<TypeChatStep>();
+    public List<TypeChatStep> Steps { get; set; } = new();
 }

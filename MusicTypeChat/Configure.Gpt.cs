@@ -1,8 +1,7 @@
-﻿using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Reliability;
-using MusicTypeChat.ServiceInterface;
+﻿using MusicTypeChat.ServiceInterface;
 using MusicTypeChat.ServiceModel;
-using ServiceStack.Gpt;
+using Microsoft.SemanticKernel;
+using ServiceStack.AI;
 
 [assembly: HostingStartup(typeof(MusicTypeChat.ConfigureGpt))]
 
@@ -13,26 +12,29 @@ public class ConfigureGpt : IHostingStartup
     public void Configure(IWebHostBuilder builder) => builder
         .ConfigureServices((context, services) =>
         {
-            services.AddSingleton<IPromptProvider>(c =>
-                new MusicPromptProvider(c.Resolve<AppConfig>()));
+            services.AddSingleton<MusicPromptProvider>();
+            services.AddSingleton<IPromptProviderFactory>(c => new PromptProviderFactory {
+                Providers = {
+                    [Tags.Music] = c.Resolve<MusicPromptProvider>()
+                }
+            });
             
             // Call Open AI Chat API directly without going through node TypeChat
             var gptProvider = context.Configuration.GetValue<string>("TypeChatProvider");
-            if (gptProvider == nameof(KernelTypeChatProvider))
+            if (gptProvider == nameof(KernelTypeChat))
             {
-                var kernel = Kernel.Builder
-                    .WithOpenAIChatCompletionService(
-                        Environment.GetEnvironmentVariable("OPENAI_MODEL")!, 
+                var kernel = Kernel.Builder.WithOpenAIChatCompletionService(
+                        Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-3.5-turbo", 
                         Environment.GetEnvironmentVariable("OPENAI_API_KEY")!)
                     .Build();
                 services.AddSingleton(kernel);
-                services.AddSingleton<ITypeChatProvider>(c =>  new KernelTypeChatProvider(c.Resolve<IKernel>()));
+                services.AddSingleton<ITypeChat>(c => new KernelTypeChat(c.Resolve<IKernel>()));
             }
-            else if (gptProvider == nameof(NodeTypeChatProvider))
+            else if (gptProvider == nameof(NodeTypeChat))
             {
                 // Call Open AI Chat API through node TypeChat
-                services.AddSingleton<ITypeChatProvider>(c => new NodeTypeChatProvider());
+                services.AddSingleton<ITypeChat>(c => new NodeTypeChat());
             }
-            else throw new NotSupportedException($"Unknown TypeChatProvider: {gptProvider}");
+            else throw new NotSupportedException($"Unknown TypeChat Provider: {gptProvider}");
         });
 }

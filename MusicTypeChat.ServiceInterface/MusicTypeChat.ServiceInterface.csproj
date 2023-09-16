@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MusicTypeChat.ServiceModel\MusicTypeChat.ServiceModel.csproj" />
-    <ProjectReference Include="..\ServiceStack.Gpt\ServiceStack.Gpt.csproj" />
   </ItemGroup>
 
 </Project>

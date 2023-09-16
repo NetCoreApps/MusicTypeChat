@@ -1,5 +1,5 @@
 ﻿using ServiceStack;
-using ServiceStack.Gpt;
+using ServiceStack.AI;
 using ServiceStack.Script;
 
 namespace MusicTypeChat.ServiceInterface;
@@ -15,9 +15,9 @@ public class MusicPromptProvider : IPromptProvider
 
     public async Task<string> CreateSchemaAsync(CancellationToken token = default)
     {
-        var file = new FileInfo(Config.SiteConfig.GptPath.CombineWith("schema.ss"));
+        var file = new FileInfo(Config.Music.GptPath.CombineWith("schema.ss"));
         if (file == null)
-            throw HttpError.NotFound($"{Config.SiteConfig.GptPath}/schema.ss not found");
+            throw HttpError.NotFound($"{Config.Music.GptPath}/schema.ss not found");
         
         var tpl = await file.ReadAllTextAsync(token: token);
         var context = new ScriptContext {
@@ -33,9 +33,9 @@ public class MusicPromptProvider : IPromptProvider
 
     public async Task<string> CreatePromptAsync(string userMessage, CancellationToken token = default)
     {
-        var file = new FileInfo(Config.SiteConfig.GptPath.CombineWith("prompt.ss"));
+        var file = new FileInfo(Config.Music.GptPath.CombineWith("prompt.ss"));
         if (file == null)
-            throw HttpError.NotFound($"{Config.SiteConfig.GptPath}/prompt.ss not found");
+            throw HttpError.NotFound($"{Config.Music.GptPath}/prompt.ss not found");
         
         var schema = await CreateSchemaAsync(token:token);
         var tpl = await file.ReadAllTextAsync(token: token);
@@ -54,32 +54,4 @@ public class MusicPromptProvider : IPromptProvider
 
         return prompt;
     }
-}
-
-public class AppConfig
-{
-    public string Project { get; set; }
-    public string Location { get; set; }
-    public SiteConfig SiteConfig { get; set; }
-    public string NodePath { get; set; }
-    public string? FfmpegPath { get; set; }
-    public string? WhisperPath { get; set; }
-    public int NodeProcessTimeoutMs { get; set; } = 120 * 1000;
-
-    public GoogleCloudSpeechConfig GoogleCloudSpeechConfig() => new()
-    {
-        Project = Project,
-        Location = Location,
-        Bucket = SiteConfig.Bucket,
-        RecognizerId = SiteConfig.RecognizerId,
-        PhraseSetId = SiteConfig.PhraseSetId,
-    };
-}
-
-public class SiteConfig
-{
-    public string GptPath { get; set; }
-    public string Bucket { get; set; }
-    public string RecognizerId { get; set; }
-    public string PhraseSetId { get; set; }
 }
