@@ -1,6 +1,4 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json.Nodes;
+﻿using System.Text;
 using ServiceStack.Auth;
 
 namespace MusicTypeChat;
@@ -63,18 +61,11 @@ public class SpotifyAuthProvider : OAuth2Provider
         var base64String = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ConsumerKey}:{ConsumerSecret}"));
     
         var contents = await url.PostToUrlAsync(payload, 
-            responseFilter: (res) =>
-            {
-                // Log details
-                Console.WriteLine($"Response Status Code: {res.StatusCode}");
-                Console.WriteLine($"Response Status Description: {res.ReasonPhrase}");
-            },
             requestFilter: req => req.Headers.Add("Authorization", $"Basic {base64String}"),
             token: token).ConfigAwait();
     
         return contents;
     }
-
 
     protected override async Task<Dictionary<string, string>> CreateAuthInfoAsync(string accessToken,
         CancellationToken token = new())
