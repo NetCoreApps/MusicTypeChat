@@ -1,5 +1,4 @@
 ﻿using System.Runtime.Serialization;
-using MusicTypeChat.ServiceModel.Types;
 using ServiceStack;
 
 namespace MusicTypeChat.ServiceModel;

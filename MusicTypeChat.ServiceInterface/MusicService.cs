@@ -57,7 +57,7 @@ public class MusicService : Service
     private async Task<object> ProcessStep<T>(TypeChatStep step, T prog) where T : TypeChatProgramBase,new()
     {
         var func = step.Func;
-        var args = step.Args ?? new List<object>();
+        var args = step.Args ?? new();
         var method = typeof(T).GetMethod(func);
 
         if (method == null)

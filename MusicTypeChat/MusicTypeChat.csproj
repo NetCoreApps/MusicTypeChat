@@ -50,4 +50,18 @@
     </None>
   </ItemGroup>
 
+
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="Pages\Posts\Post.cshtml" />
+    <_ContentIncludedByDefault Remove="Pages\Admin\Bookings.cshtml" />
+    <_ContentIncludedByDefault Remove="Pages\Admin\Coupons.cshtml" />
+    <_ContentIncludedByDefault Remove="Pages\Admin\Index.cshtml" />
+    <_ContentIncludedByDefault Remove="Pages\Admin\_Layout.cshtml" />
+    <_ContentIncludedByDefault Remove="wwwroot\img\authors\author1.svg" />
+    <_ContentIncludedByDefault Remove="wwwroot\img\authors\author2.svg" />
+    <_ContentIncludedByDefault Remove="wwwroot\img\authors\author3.svg" />
+  </ItemGroup>
+
+
+
 </Project>

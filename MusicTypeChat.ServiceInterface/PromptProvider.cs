@@ -1,20 +1,14 @@
-﻿using System.Diagnostics;
-using MusicTypeChat.ServiceModel;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.AI.ChatCompletion;
-using MusicTypeChat.ServiceModel;
-using ServiceStack;
+﻿using ServiceStack;
 using ServiceStack.Gpt;
 using ServiceStack.Script;
-using ServiceStack.Text;
 
 namespace MusicTypeChat.ServiceInterface;
 
-public class MusicChatPromptProvider : IPromptProvider
+public class MusicPromptProvider : IPromptProvider
 {
     public AppConfig Config { get; set; }
 
-    public MusicChatPromptProvider(AppConfig config)
+    public MusicPromptProvider(AppConfig config)
     {
         Config = config;
     }

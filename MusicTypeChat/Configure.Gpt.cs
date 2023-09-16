@@ -14,7 +14,7 @@ public class ConfigureGpt : IHostingStartup
         .ConfigureServices((context, services) =>
         {
             services.AddSingleton<IPromptProvider>(c =>
-                new MusicChatPromptProvider(c.Resolve<AppConfig>()));
+                new MusicPromptProvider(c.Resolve<AppConfig>()));
             
             // Call Open AI Chat API directly without going through node TypeChat
             var gptProvider = context.Configuration.GetValue<string>("TypeChatProvider");
