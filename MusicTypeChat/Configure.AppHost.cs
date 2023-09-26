@@ -1,4 +1,6 @@
 using Funq;
+using ServiceStack.Aws;
+using ServiceStack.Azure;
 using ServiceStack.Configuration;
 using ServiceStack.Host;
 using ServiceStack.IO;
@@ -14,16 +16,41 @@ public class AppHost : AppHostBase, IHostingStartup
     public void Configure(IWebHostBuilder builder) => builder
         .ConfigureServices((context,services) => {
             // Configure ASP.NET Core IOC Dependencies
-            var appConfig = new AppConfig();
-            context.Configuration.Bind(nameof(AppConfig), appConfig);
+            var appConfig = context.Configuration.GetSection(nameof(AppConfig)).Get<AppConfig>();
             services.AddSingleton(appConfig);
 
+            var aws = context.Configuration.GetSection(nameof(AwsConfig))?.Get<AwsConfig>();
+            if (aws != null)
+            {
+                aws.AccountId ??= Environment.GetEnvironmentVariable("AWS_ACCOUNT_ID");
+                aws.AccessKey ??= Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID");
+                aws.SecretKey ??= Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY");
+                aws.Region ??= Environment.GetEnvironmentVariable("AWS_REGION");
+                services.AddSingleton(aws);
+            }
+
+            var r2 = context.Configuration.GetSection(nameof(R2Config))?.Get<R2Config>();
+            if (r2 != null)
+            {
+                r2.AccountId ??= Environment.GetEnvironmentVariable("R2_ACCOUNT_ID");
+                r2.AccessKey ??= Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID");
+                r2.SecretKey ??= Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY");
+                services.AddSingleton(r2);
+            }
+
+            var azure = context.Configuration.GetSection(nameof(AzureConfig))?.Get<AzureConfig>();
+            if (azure != null)
+            {
+                azure.SpeechKey ??= Environment.GetEnvironmentVariable("SPEECH_KEY");
+                azure.SpeechRegion ??= Environment.GetEnvironmentVariable("SPEECH_REGION");
+                azure.ConnectionString ??= Environment.GetEnvironmentVariable("AZURE_BLOB_CONNECTION_STRING");
+                services.AddSingleton(azure);
+            }
+            
             if (!AppTasks.IsRunAsAppTask())
             {
-                appConfig.NodePath = ProcessUtils.FindExePath("node")
-                                     ?? throw new Exception("Could not resolve path to node");
-                appConfig.FfmpegPath = ProcessUtils.FindExePath("ffmpeg");
-                appConfig.WhisperPath = ProcessUtils.FindExePath("whisper");
+                appConfig.NodePath ??= ProcessUtils.FindExePath("node") ?? throw new Exception("Could not resolve path to node");
+                appConfig.FfmpegPath ??= ProcessUtils.FindExePath("ffmpeg");
             }
         });
 
