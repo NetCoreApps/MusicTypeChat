@@ -5,6 +5,7 @@ using ServiceStack.Configuration;
 using ServiceStack.Host;
 using ServiceStack.IO;
 using ServiceStack.Web;
+using ServiceStack.GoogleCloud;
 using MusicTypeChat.ServiceInterface;
 
 [assembly: HostingStartup(typeof(MusicTypeChat.AppHost))]
@@ -18,6 +19,12 @@ public class AppHost : AppHostBase, IHostingStartup
             // Configure ASP.NET Core IOC Dependencies
             var appConfig = context.Configuration.GetSection(nameof(AppConfig)).Get<AppConfig>();
             services.AddSingleton(appConfig);
+
+            var gcp = context.Configuration.GetSection(nameof(GoogleCloudConfig))?.Get<GoogleCloudConfig>();
+            if (gcp != null)
+            {
+                services.AddSingleton(gcp);
+            }
 
             var aws = context.Configuration.GetSection(nameof(AwsConfig))?.Get<AwsConfig>();
             if (aws != null)
